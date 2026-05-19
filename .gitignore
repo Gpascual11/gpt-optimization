@@ -1,0 +1,18 @@
+# Virtual Environments
+.venv/
+env/
+venv/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Datasets and outputs
+data/*.bin
+data/script/*.bin
+data/raw/*.bin
+out/
+
+# OS generated files
+.DS_Store
