@@ -45,7 +45,7 @@ compile        = True
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
 
-ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16}[dtype]
+ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
 ctx = torch.amp.autocast(device_type=device, dtype=ptdtype) \
       if device == 'cuda' else nullcontext()
 
