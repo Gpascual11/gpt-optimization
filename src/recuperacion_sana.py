@@ -37,8 +37,8 @@ lr_decay_iters = 5000
 min_lr         = 1e-4
 
 device         = 'cuda' if torch.cuda.is_available() else 'cpu'
-dtype          = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else 'float32'
-compile        = False
+dtype          = 'float16'
+compile        = True
 
 
 
