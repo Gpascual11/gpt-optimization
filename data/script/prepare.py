@@ -1,3 +1,11 @@
+"""
+This script processes the raw Tiny Shakespeare text file. It performs the following steps:
+1. Reads the raw text data.
+2. Creates a character-level vocabulary.
+3. Splits the data into training (90%) and validation (10%) sets.
+4. Encodes the text data into integer tokens and saves them as memory-mapped binary files.
+5. Saves the vocabulary metadata (token-to-string and string-to-token mappings) to a pickle file.
+"""
 import os
 import pickle
 import numpy as np
@@ -18,9 +26,11 @@ print(f"vocab size: {vocab_size:,}")
 # create a mapping from characters to integers
 stoi = { ch:i for i,ch in enumerate(chars) }
 itos = { i:ch for i,ch in enumerate(chars) }
-def encode(s):
+def encode(s: str) -> list[int]:
+    """Encodes a string into a list of integer tokens."""
     return [stoi[c] for c in s]
-def decode(l):
+def decode(l: list[int]) -> str:
+    """Decodes a list of integer tokens back into a string."""
     return ''.join([itos[i] for i in l])
 
 # create the train and test splits

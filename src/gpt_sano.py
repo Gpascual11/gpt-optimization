@@ -1,3 +1,9 @@
+"""
+This module contains the corrected and optimized implementation of a GPT-style model.
+It includes the necessary components like multi-head self-attention, MLP blocks,
+and the main GPT model class, incorporating modern best practices such as Pre-LN
+and Flash Attention.
+"""
 import math
 import torch
 import torch.nn as nn
@@ -5,13 +11,14 @@ from torch.nn import functional as F
 
 
 class GPTConfig:
-    block_size: int = 1024
-    vocab_size: int = 50257
-    n_layer: int = 12
-    n_head: int = 12
-    n_embd: int = 768
-    dropout: float = 0.1
-    bias: bool = True
+    """Configuration class for the GPT model."""
+    block_size: int = 1024  # Maximum sequence length
+    vocab_size: int = 50257 # Vocabulary size
+    n_layer: int = 12      # Number of transformer blocks
+    n_head: int = 12       # Number of attention heads
+    n_embd: int = 768      # Embedding dimension
+    dropout: float = 0.1   # Dropout rate
+    bias: bool = True      # Whether to use bias in linear layers
 
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
@@ -19,17 +26,20 @@ class GPTConfig:
 
 
 class LayerNorm(nn.Module):
+    """A custom LayerNorm module."""
     def __init__(self, ndim, bias):
         super().__init__()
         self.weight = nn.Parameter(torch.ones(ndim))
         self.bias = nn.Parameter(torch.zeros(ndim)) if bias else None
 
     def forward(self, x):
+        """Forward pass for LayerNorm."""
         return F.layer_norm(x, self.weight.shape, self.weight, self.bias, 1e-5)
 
 
 class CausalSelfAttention(nn.Module):
-
+    """Implements a causal self-attention mechanism."""
+    
     def __init__(self, config):
         super().__init__()
         assert config.n_embd % config.n_head == 0
@@ -51,6 +61,15 @@ class CausalSelfAttention(nn.Module):
         )
 
     def forward(self, x):
+        """
+        Forward pass for the Causal Self-Attention block.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (B, T, C).
+
+        Returns:
+            torch.Tensor: Output tensor of the same shape.
+        """
         B, T, C = x.size()
 
         # Quality fix: using single projection and scaled dot product attention (Flash Attention)
@@ -69,7 +88,7 @@ class CausalSelfAttention(nn.Module):
 
 
 class MLP(nn.Module):
-
+    """A simple Multi-Layer Perceptron block."""
     def __init__(self, config):
         super().__init__()
         # Quality fix: Hidden dimension in MLP is 4 * n_embd
@@ -80,6 +99,7 @@ class MLP(nn.Module):
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
+        """Forward pass for the MLP."""
         x = self.c_fc(x)
         x = self.act(x)
         x = self.c_proj(x)
@@ -88,7 +108,7 @@ class MLP(nn.Module):
 
 
 class Block(nn.Module):
-
+    """A single Transformer block, combining self-attention and an MLP."""
     def __init__(self, config):
         super().__init__()
         self.ln_1 = LayerNorm(config.n_embd, bias=config.bias)
@@ -97,6 +117,7 @@ class Block(nn.Module):
         self.mlp  = MLP(config)
 
     def forward(self, x):
+        """Forward pass for the Transformer block."""
         # Critical fix: Use Pre-LN (LayerNorm before attention and MLP) instead of Post-LN
         x = x + self.attn(self.ln_1(x))
         x = x + self.mlp(self.ln_2(x))
@@ -104,8 +125,12 @@ class Block(nn.Module):
 
 
 class GPT(nn.Module):
-
+    """The main GPT model class."""
+    
     def __init__(self, config):
+        """
+        Initializes the GPT model with the given configuration.
+        """
         super().__init__()
         self.config = config
 
@@ -122,7 +147,7 @@ class GPT(nn.Module):
         # Quality fix: Weight tying between token embeddings and the LM head
         self.lm_head.weight = self.transformer.wte.weight
 
-        self.apply(self._init_weights) # Apply instead of manual recursion
+        self.apply(self._init_weights)
         
         # scale residual projections
         for pn, p in self.named_parameters():
@@ -132,9 +157,11 @@ class GPT(nn.Module):
         print(f"Number of parameters: {self.get_num_params()/1e6:.2f}M")
 
     def get_num_params(self):
+        """Returns the total number of parameters in the model."""
         return sum(p.numel() for p in self.parameters())
 
     def _init_weights(self, module):
+        """Initializes the weights of the model's modules."""
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
@@ -143,6 +170,16 @@ class GPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
+        """
+        Forward pass for the GPT model.
+
+        Args:
+            idx (torch.Tensor): Input tensor of token indices.
+            targets (torch.Tensor, optional): Target token indices for loss calculation.
+
+        Returns:
+            tuple: A tuple containing logits and the loss (if targets are provided).
+        """
         device = idx.device
         B, T = idx.size()
         assert T <= self.config.block_size
@@ -171,6 +208,18 @@ class GPT(nn.Module):
 
     @torch.no_grad()
     def generate(self, idx, max_new_tokens, temperature=1.0, top_k=None):
+        """
+        Generates a sequence of tokens starting from the given context.
+
+        Args:
+            idx (torch.Tensor): The initial context (token indices).
+            max_new_tokens (int): The maximum number of new tokens to generate.
+            temperature (float): Softmax temperature for sampling.
+            top_k (int, optional): If specified, samples from the top k most likely tokens.
+
+        Returns:
+            torch.Tensor: The generated sequence of token indices.
+        """
         for _ in range(max_new_tokens):
             idx_cond = idx if idx.size(1) <= self.config.block_size \
                        else idx[:, -self.config.block_size:]
@@ -185,6 +234,18 @@ class GPT(nn.Module):
         return idx
 
     def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        """
+        Configures the AdamW optimizer with weight decay separation.
+
+        Args:
+            weight_decay (float): The weight decay value.
+            learning_rate (float): The learning rate.
+            betas (tuple): AdamW betas.
+            device_type (str): The device type ('cuda' or 'cpu').
+
+        Returns:
+            torch.optim.Optimizer: The configured optimizer.
+        """
         # Quality fix: Separate parameters for weight decay
         param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
         decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]

@@ -1,3 +1,8 @@
+"""
+This script handles the training of the corrected GPT model (`gpt_sano.py`)
+on the Tiny Shakespeare dataset. It includes data loading, the main training loop,
+learning rate scheduling, loss estimation, and checkpointing with early stopping.
+"""
 import os
 import time
 import math
@@ -12,10 +17,10 @@ eval_interval  = 250
 log_interval   = 10
 eval_iters     = 200
 eval_only      = False
-# For the final run, we only need the best model, so this can be False.
+
 always_save_checkpoint = False
 
-dataset        = 'tinyshakespeare' # Fix dataset name to point to our tinyshakespeare
+dataset        = 'tinyshakespeare' 
 batch_size     = 64
 block_size     = 256
 
@@ -42,7 +47,7 @@ device         = 'cuda' if torch.cuda.is_available() else 'cpu'
 dtype          = 'float16'
 compile        = True
 
-
+# -------------------------------------------------
 
 os.makedirs(out_dir, exist_ok=True)
 torch.manual_seed(1337)
@@ -51,12 +56,20 @@ ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torc
 ctx = torch.amp.autocast(device_type=device, dtype=ptdtype) \
       if device == 'cuda' else nullcontext()
 
-# Go up one dir since we run this in src maybe? Wait, data_dir is usually ../data or data
 data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
 train_data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
 val_data   = np.memmap(os.path.join(data_dir, 'val.bin'),   dtype=np.uint16, mode='r')
 
 def get_batch(split):
+    """
+    Generates a random batch of data for training or validation.
+
+    Args:
+        split (str): The data split to use ('train' or 'val').
+
+    Returns:
+        tuple: A tuple containing input tensors (x) and target tensors (y).
+    """
     data = train_data if split == 'train' else val_data
     ix   = torch.randint(len(data) - block_size, (batch_size,))
     x    = torch.stack([torch.from_numpy(data[i:i+block_size]) for i in ix])
@@ -86,6 +99,12 @@ scaler = torch.amp.GradScaler(device, enabled=(dtype == 'float16'))
 
 @torch.no_grad()
 def estimate_loss():
+    """
+    Estimates the average loss for both training and validation splits.
+
+    Returns:
+        dict: A dictionary containing the mean loss for 'train' and 'val' splits.
+    """
     out = {}
     model.eval()
     for split in ['train', 'val']:
@@ -101,6 +120,16 @@ def estimate_loss():
 
 
 def get_lr(it):
+    """
+    Calculates the learning rate for a given iteration using a cosine decay schedule
+    with warmup.
+
+    Args:
+        it (int): The current training iteration.
+
+    Returns:
+        float: The calculated learning rate.
+    """
     if it < warmup_iters:
         return learning_rate * it / warmup_iters
     if it > lr_decay_iters:

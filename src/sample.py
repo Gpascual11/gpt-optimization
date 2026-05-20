@@ -1,7 +1,12 @@
+"""
+This script generates sample text from a trained GPT model checkpoint.
+It loads the model configuration and weights from `out/ckpt.pt`,
+encodes a starting text prompt, and generates a sequence of new tokens.
+"""
 import os
 import pickle
 import torch
-from gpt_sano import GPTConfig, GPT
+from gpt_sano import GPTConfig, GPT # type: ignore
 
 # Load meta to get vocabulary and decoding mapping
 data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
