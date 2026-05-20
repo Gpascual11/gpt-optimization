@@ -12,7 +12,8 @@ eval_interval  = 250
 log_interval   = 10
 eval_iters     = 200
 eval_only      = False
-always_save_checkpoint = True
+# For the final run, we only need the best model, so this can be False.
+always_save_checkpoint = False
 
 dataset        = 'tinyshakespeare' # Fix dataset name to point to our tinyshakespeare
 batch_size     = 64
@@ -35,6 +36,7 @@ decay_lr       = True
 warmup_iters   = 100
 lr_decay_iters = 5000
 min_lr         = 1e-4
+patience       = 5
 
 device         = 'cuda' if torch.cuda.is_available() else 'cpu'
 dtype          = 'float16'
@@ -57,9 +59,9 @@ val_data   = np.memmap(os.path.join(data_dir, 'val.bin'),   dtype=np.uint16, mod
 def get_batch(split):
     data = train_data if split == 'train' else val_data
     ix   = torch.randint(len(data) - block_size, (batch_size,))
-    x    = torch.stack([torch.from_numpy(data[i     : i + block_size    ].astype(np.int64)) for i in ix])
-    y    = torch.stack([torch.from_numpy(data[i + 1 : i + block_size + 1].astype(np.int64)) for i in ix])
-    x, y = x.to(device), y.to(device)
+    x    = torch.stack([torch.from_numpy(data[i:i+block_size]) for i in ix])
+    y    = torch.stack([torch.from_numpy(data[i+1:i+1+block_size]) for i in ix])
+    x, y = x.to(device, dtype=torch.long), y.to(device, dtype=torch.long)
     return x, y
 
 with open(os.path.join(data_dir, 'meta.pkl'), 'rb') as f:
@@ -109,6 +111,7 @@ def get_lr(it):
 
 
 best_val_loss = float('inf')
+patience_counter = 0
 X, Y = get_batch('train')
 t0 = time.time()
 
@@ -123,16 +126,26 @@ for iter_num in range(max_iters + 1):
         losses = estimate_loss()
         print(f"step {iter_num}: train loss {losses['train']:.4f}, "
               f"val loss {losses['val']:.4f}")
-        if losses['val'] < best_val_loss or always_save_checkpoint:
+
+        if losses['val'] < best_val_loss:
             best_val_loss = losses['val']
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'model_args': model_args,
-                'iter_num': iter_num,
-                'best_val_loss': best_val_loss,
-            }
-            torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+            patience_counter = 0
+            if iter_num > 0: # Do not save at step 0
+                checkpoint = {
+                    'model': model.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'model_args': model_args,
+                    'iter_num': iter_num,
+                    'best_val_loss': best_val_loss,
+                }
+                print(f"New best validation loss: {best_val_loss:.4f}. Saving checkpoint to {out_dir}/ckpt.pt")
+                torch.save(checkpoint, os.path.join(out_dir, 'ckpt.pt'))
+        else:
+            patience_counter += 1
+
+        if patience_counter >= patience:
+            print(f"Early stopping triggered at step {iter_num}. Validation loss hasn't improved for {patience * eval_interval} steps.")
+            break
 
     if eval_only:
         break

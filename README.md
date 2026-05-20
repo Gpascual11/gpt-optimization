@@ -23,7 +23,7 @@ The current optimized repository is organized as follows:
 - **`gpt_enfermo.py`**: The original flawed GPT model implementation (preserved for reference).
 - **`gpt_sano.py`**: The corrected and optimized GPT model. This file implements the architectural fixes, including proper attention scaling, Pre-LayerNorm configuration, vectorized loss computation, FlashAttention integration, and correct weight initialization.
 - **`recuperacion.py`**: The original training script (preserved for reference).
-- **`recuperacion_sana.py`**: The modernized training script, updated to correctly import the optimized model and properly interface with the generated Tiny Shakespeare binary data.
+- **`recuperacion_sana.py`**: The modernized training script, updated to correctly import the optimized model, properly interface with the generated Tiny Shakespeare binary data, and implement early stopping to prevent overfitting.
 
 ### Documentation
 - **`README.md`**: Project overview and structure.
@@ -48,8 +48,14 @@ The project is configured to run inside a Python virtual environment managed by 
    ```
 
 3. **Train the Model**:
-   Execute the training script to begin the model's recovery process.
+   Execute the training script to begin the model's recovery process. The script will automatically save the best model checkpoint to the `out/` directory and stop training when the validation loss stops improving.
    ```bash
    python src/recuperacion_sana.py
    ```
-   Checkpoints and logs will be saved in the generated `out/` directory.
+
+4. **Generate Sample Text**:
+   Once training is complete, run the sampling script to see the recovered GPT in action.
+   ```bash
+   python src/sample.py
+   ```
+   This will load the best checkpoint from `out/ckpt.pt` and generate a sample of Shakespearean text.
