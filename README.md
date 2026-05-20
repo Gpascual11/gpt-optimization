@@ -6,8 +6,8 @@ This project focuses on the structural analysis, debugging, and optimization of 
 
 The repository initially provided two core scripts that served as the baseline for this project:
 
-- **`gpt_enfermo.py`**: A foundational but flawed implementation of a GPT model. This file contained 8 distinct bugs: 3 critical errors that caused mathematical instability or completely hindered the training process, and 5 quality/efficiency errors that degraded performance, memory usage, or deviated from standard deep learning practices.
-- **`recuperacion.py`**: The original training loop script. It was designed to train the model, but it referenced an incorrect dataset path and imported the flawed GPT model without proper optimization settings.
+- **[gpt_enfermo.py](src/gpt_enfermo.py)**: A foundational but flawed implementation of a GPT model. This file contained 8 distinct bugs: 3 critical errors that caused mathematical instability or completely hindered the training process, and 5 quality/efficiency errors that degraded performance, memory usage, or deviated from standard deep learning practices.
+- **[recuperacion.py](src/recuperacion.py)**: The original training loop script. It was designed to train the model, but it referenced an incorrect dataset path and imported the flawed GPT model without proper optimization settings.
 
 The goal of the project was to document these flaws, implement robust solutions, and achieve a successful training cycle.
 
@@ -16,39 +16,49 @@ The goal of the project was to document these flaws, implement robust solutions,
 The current optimized repository is organized as follows:
 
 ### `data/`
-- **`tinyshakespeare.txt`**: The raw text dataset containing all of Shakespeare's works.
-- **`prepare.py`**: A script developed to process the raw text, build a character-level vocabulary, and encode the data into binary memory-mapped files (`train.bin` and `val.bin`) for efficient data loading during training.
+- **`raw/`**
+  - **[tinyshakespeare.txt](data/raw/tinyshakespeare.txt)**: The raw text dataset containing all of Shakespeare's works.
+- **`script/`**
+  - **[prepare.py](data/script/prepare.py)**: A script developed to process the raw text, build a character-level vocabulary, and encode the data into binary memory-mapped files (`train.bin` and `val.bin`) for efficient data loading during training.
+- **[train.bin](data/train.bin)**: Generated binary training file.
+- **[val.bin](data/val.bin)**: Generated binary validation file.
+- **[meta.pkl](data/meta.pkl)**: Serialized metadata pickle file containing vocabulary and token mapping dictionaries.
 
 ### `src/`
-- **`gpt_enfermo.py`**: The original flawed GPT model implementation (preserved for reference).
-- **`gpt_sano.py`**: The corrected and optimized GPT model. This file implements the architectural fixes, including proper attention scaling, Pre-LayerNorm configuration, vectorized loss computation, FlashAttention integration, and correct weight initialization.
-- **`recuperacion.py`**: The original training script (preserved for reference).
-- **`recuperacion_sana.py`**: The modernized training script, updated to correctly import the optimized model, properly interface with the generated Tiny Shakespeare binary data, and implement early stopping to prevent overfitting.
+- **[gpt_enfermo.py](src/gpt_enfermo.py)**: The original flawed GPT model implementation (preserved for reference).
+- **[gpt_sano.py](src/gpt_sano.py)**: The corrected and optimized GPT model. This file implements the architectural fixes, including proper attention scaling, Pre-LayerNorm configuration, vectorized loss computation, FlashAttention integration, and correct weight initialization.
+- **[recuperacion.py](src/recuperacion.py)**: The original training script (preserved for reference).
+- **[recuperacion_sana.py](src/recuperacion_sana.py)**: The modernized training script, updated to correctly import the optimized model, properly interface with the generated Tiny Shakespeare binary data, and implement early stopping to prevent overfitting.
+- **[sample.py](src/sample.py)**: The text generation/sampling script.
+
+### `out/`
+- **[ckpt.pt](out/ckpt.pt)**: The model checkpoint file containing the best model weights, optimizer state, and training configuration, saved automatically during training when validation loss improves.
 
 ### Documentation
-- **`README.md`**: Project overview and structure.
-- **`EXPLANATION.md`**: A detailed technical report outlining the bugs identified in the original codebase, their implications on model training, and the methodological solutions applied.
+- **[README.md](README.md)**: Project overview and structure.
+- **[EXPLANATION.md](EXPLANATION.md)**: A detailed technical report outlining the bugs identified in the original codebase, their implications on model training, and the methodological solutions applied.
+- **[RESULTS.md](RESULTS.md)**: Summary of the CPU vs. GPU training results and sample generated text.
 
 ## Running the Project
 
 The project is configured to run inside a Python virtual environment managed by `uv`.
 
 1. **Set up the Environment**:
-   Initialize the virtual environment and install the required dependencies (PyTorch and NumPy).
+   Initialize the virtual environment and install the required dependencies from [requirements.txt](requirements.txt).
    ```bash
    uv venv
    source .venv/bin/activate
-   uv pip install torch numpy
+   uv pip install -r requirements.txt
    ```
 
 2. **Prepare the Dataset**:
    Navigate to the project root and execute the data preparation script to generate the training and validation splits.
    ```bash
-   python data/prepare.py
+   python data/script/prepare.py
    ```
 
 3. **Train the Model**:
-   Execute the training script to begin the model's recovery process. The script will automatically save the best model checkpoint to the `out/` directory and stop training when the validation loss stops improving.
+   Execute the training script to begin the model's training process. The script will automatically save the best model checkpoint to the `out/` directory and stop training when the validation loss stops improving (early stopping).
    ```bash
    python src/recuperacion_sana.py
    ```

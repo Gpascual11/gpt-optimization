@@ -1,6 +1,6 @@
 # GPT Optimization Training & Performance Results
 
-This report presents the training results and performance benchmarks for the optimized GPT model (`gpt_sano.py`) trained on the Tiny Shakespeare dataset. Training was evaluated on both the host's CPU and GPU, following system configuration and driver remediation.
+This report presents the training results and performance benchmarks for the optimized GPT model ([gpt_sano.py](src/gpt_sano.py)) trained on the Tiny Shakespeare dataset. Training was evaluated on both the host's CPU and GPU.
 
 ---
 
@@ -13,39 +13,35 @@ This report presents the training results and performance benchmarks for the opt
 
 ---
 
-## 2. GPU Driver Resolution Details
+## 2. Model Configuration & Hyperparameters
 
-Initially, `nvidia-smi` failed with the following error:
-> `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver. Make sure that the latest NVIDIA driver is installed and running.`
+The model architecture from [gpt_sano.py](src/gpt_sano.py) contains 10.75 Million parameters. Below is the complete configuration of hyperparameters used for both the model and the training loop:
 
-### Root Cause Analysis
-The pre-compiled driver modules (`linux-modules-nvidia-580-open-6.17.0-22-generic`) were installed for the previous kernel version (`6.17.0-22`). When the system booted into the newer kernel `6.17.0-23-generic`, the pre-compiled module for version `23` had an unmet dependency in the repositories: it required `nvidia-kernel-common-580 (>= 580.142)` but the repository's candidate had upgraded to version `580.159`, leading to a version mismatch conflict in `apt`.
-
-### Solution
-Instead of using pre-compiled modules, we bypassed the repository mismatches by installing **DKMS** (Dynamic Kernel Module Support). This compiles the GPU kernel modules locally on the host specifically for the active kernel:
-```bash
-sudo apt-get update
-sudo apt-get install -y dkms nvidia-dkms-580-open
-sudo modprobe nvidia
-```
-This successfully loaded the driver modules and restored CUDA access to PyTorch (`torch.cuda.is_available() == True`).
-
----
-
-## 3. Model Configuration
-
-The model architecture from `gpt_sano.py` contains 10.75 Million parameters with the following hyperparameters:
+### Model Configuration
 * **Number of Layers (`n_layer`)**: 6
 * **Number of Heads (`n_head`)**: 6
 * **Embedding Dimension (`n_embd`)**: 384 (64 dimension per head)
 * **Block Size (Context Length)**: 256
-* **Batch Size**: 64
 * **Vocabulary Size**: 65 (character-level tokens)
+* **Dropout Rate (`dropout`)**: 0.2
+* **Use LayerNorm Bias (`bias`)**: False
+* **Weight Tying**: Enabled (Token embedding and final projection head share weights)
 * **Total Parameters**: 10.75M
+
+### Training & Optimizer Configuration
+* **Batch Size**: 64
+* **Max Iterations**: 5000
+* **Learning Rate (Peak)**: 1e-3
+* **Cosine Learning Rate Decay**: Enabled (Decays down to `min_lr` of 1e-4 over 5000 steps)
+* **Warmup Iterations**: 100
+* **Weight Decay**: 1e-1 (applied only to 2D weight matrices)
+* **AdamW Betas**: (0.9, 0.99)
+* **Gradient Clipping Threshold**: 1.0
+* **Early Stopping Patience**: 5 evaluation intervals (validation checked every 250 steps, stopping if no improvement for 1250 steps)
 
 ---
 
-## 4. CPU vs. GPU Performance Benchmarks
+## 3. CPU vs. GPU Performance Benchmarks
 
 To analyze execution speed, a 50-step CPU benchmark was run using `float32` precision (without graph compilation to avoid slow compilation overhead on CPU). The full 5000-step GPU training run was executed using `float16` precision with PyTorch's graph compilation (`torch.compile`) enabled.
 
@@ -63,7 +59,7 @@ To analyze execution speed, a 50-step CPU benchmark was run using `float32` prec
 
 ---
 
-## 5. GPU Training Metrics & Loss Progression
+## 4. GPU Training Metrics & Loss Progression
 
 The model was successfully trained for the full **5,000 steps** on the GPU. Validation loss was estimated every 250 steps using 200 random batches.
 
@@ -84,13 +80,13 @@ The model was successfully trained for the full **5,000 steps** on the GPU. Vali
 ### Key Observations
 1. **Convergence**: The model converges very quickly, dropping validation loss from `4.28` to `2.15` in the first 250 steps, showing that weight initialization, scaling factors, and Pre-LN placement are mathematically sound.
 2. **Optimal Checkpoint**: The optimal validation loss occurs near **step 2000** with a loss of **1.5034**.
-3. **Overfitting and Early Stopping**: The initial 5,000-step training run showed clear signs of overfitting beyond step 2000, where validation loss began to increase. To automate the process of finding the optimal checkpoint and prevent wasted computation, **early stopping** was implemented in `recuperacion_sana.py`. A subsequent training run confirmed its effectiveness: the script automatically terminated at step 3000 after detecting that the validation loss had not improved for 1,250 steps, successfully saving the model at its peak performance (around step 2000) and avoiding unnecessary further training.
+3. **Overfitting and Early Stopping**: The initial 5,000-step training run showed clear signs of overfitting beyond step 2000, where validation loss began to increase. To automate the process of finding the optimal checkpoint and prevent wasted computation, **early stopping** was implemented in [recuperacion_sana.py](src/recuperacion_sana.py). A subsequent training run confirmed its effectiveness: the script automatically terminated at step 3000 after detecting that the validation loss had not improved for 1,250 steps, successfully saving the model at its peak performance (around step 2000) and avoiding unnecessary further training.
 
 ---
 
-## 6. Verification of Bug Remediations
+## 5. Verification of Bug Remediations
 
-The successful execution of training without numerical overflow or gradient collapse confirms the resolution of the following bugs from `gpt_enfermo.py`:
+The successful execution of training without numerical overflow or gradient collapse confirms the resolution of the following bugs from [gpt_enfermo.py](src/gpt_enfermo.py):
 1. **Scaled Attention**: Verified by stable gradients and regular convergence.
 2. **Pre-LayerNorm Placement**: Stabilized the early phase of training, preventing gradient explosion.
 3. **Vectorized Cross-Entropy**: Shifted the training loop bottleneck away from CPU tensor iteration.
@@ -99,9 +95,9 @@ The successful execution of training without numerical overflow or gradient coll
 
 ---
 
-## 7. Generated Sample Output
+## 6. Generated Sample Output
 
-After the successful training and checkpointing of the healthy model, the `src/sample.py` script was executed to generate a sample of text. The output below demonstrates that the model has successfully learned the style, vocabulary, and basic structure of Shakespearean English.
+After the successful training and checkpointing of the healthy model, the [sample.py](src/sample.py) script was executed to generate a sample of text. The output below demonstrates that the model has successfully learned the style, vocabulary, and basic structure of Shakespearean English.
 
 ```
 Much her in her all sorrow'd loves him.
